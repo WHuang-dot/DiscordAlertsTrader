@@ -1,4 +1,3 @@
-
 import os
 import time
 import pandas as pd
@@ -151,6 +150,21 @@ class DiscordBot(discord.Client):
             self.chn_hist_fname[ch] = dt_fname
             self.chn_hist[ch]= ch_dt
 
+    def _get_embed_content(self, message):
+        """Extracts text from message embeds."""
+        if not hasattr(message, 'embeds') or not message.embeds:
+            return ""
+        
+        embed_text = ""
+        for embed in message.embeds:
+            if embed.title:
+                embed_text += f" {embed.title}"
+            if embed.description:
+                embed_text += f" {embed.description}"
+            for field in embed.fields:
+                embed_text += f" {field.name} {field.value}"
+        return embed_text
+
     async def on_ready(self):
         print('Logged on as', self.user , '\n loading previous messages')        
         await self.load_previous_msgs()
@@ -181,13 +195,14 @@ class DiscordBot(discord.Client):
          
         
         message = server_formatting(message)
+        message.content += self._get_embed_content(message)
+
         if custom:
             await msg_custom_formated2(message)
             alert = msg_custom_formated(message, self.bksession)
             if alert is not None:
                 for msg in alert:
                     self.new_msg_acts(msg, False)
-                return
         
         if not len(message.content):
             return
@@ -223,6 +238,9 @@ class DiscordBot(discord.Client):
                 message = server_formatting(message)
                 if message is None:
                     continue
+                
+                message.content += self._get_embed_content(message)
+
                 if custom:
                     alert = msg_custom_formated(message)
                     if alert is not None:
@@ -311,10 +329,8 @@ class DiscordBot(discord.Client):
                     if quote > 0:
                         order['price_actual'] = quote
                     if order['price'] == 0:
-                        str_msg = f"ALerted price is 0, skipping alert "
-                        self.queue_prints.put([f"\t {str_msg}", "green"])
-                        print(Fore.GREEN + f"\t {str_msg}")
-                        return
+                        order['price'] = quote
+                        
                     act_diff = max(((quote - order['price'])/order['price']), (order['price'] - quote)/ quote)
                     # Check if actual price is too far (100) from alerted price
                     if abs(act_diff) > 1 and order.get('action') == 'BTO':
